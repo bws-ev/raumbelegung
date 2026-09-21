@@ -123,10 +123,10 @@ const CONFIG = {
   refreshMinutes: 5,
   rooms: [
     { name:"Digital Konfi 1",  mail:"raum-digi1@bws-ev.de",            site:"pw", info:"" },
-    { name:"Analog",           mail:"raum-analog@bws-ev.de",           site:"pw", info:"EG" },
-    { name:"Perso",            mail:"raum-perso@bws-ev.de",            site:"pw", info:"EG" },
-    { name:"Systemisch",       mail:"raum-systemisch-2og@bws-ev.de",   site:"pw", info:"2. OG · Genehmigung" },
-    { name:"Besprechung",      mail:"raum-besprechung-2og@bws-ev.de",  site:"pw", info:"2. OG · Genehmigung" },
+    { name:"Analog",           mail:"raum-analog@bws-ev.de",           site:"pw", info:"" },
+    { name:"Perso",            mail:"raum-perso@bws-ev.de",            site:"pw", info:"" },
+    { name:"Systemisch",       mail:"raum-systemisch-2og@bws-ev.de",   site:"pw", info:"Genehmigung durch Katrin" },
+    { name:"Besprechung",      mail:"raum-besprechung-2og@bws-ev.de",  site:"pw", info:"Genehmigung durch Katrin" },
     { name:"Palmenhaus Café",  mail:"palmenhaus-cafe@bws-ev.de",       site:"ph", info:"Astrid-Lindgren-Str. 16" },
     { name:"Palmenhaus Seminar", mail:"palmenhaus-seminar@bws-ev.de",  site:"ph", info:"Astrid-Lindgren-Str. 16" },
     { name:"Palmenhaus Beratung", mail:"palmenhaus-beratung@bws-ev.de",site:"ph", info:"Astrid-Lindgren-Str. 16" },
@@ -146,7 +146,7 @@ let timer = null;
 
 /* ---------- Auth (MSAL, Anmeldung mit dem BWS-Konto) ---------- */
 const msal = new window.msal.PublicClientApplication({
-  auth: { clientId: CONFIG.clientId, authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`, redirectUri: location.origin + location.pathname },
+  auth: { clientId: CONFIG.clientId, authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`, redirectUri: location.origin + location.pathname.replace(/index\.html$/, "") },
   cache: { cacheLocation: "localStorage" }
 });
 const SCOPES = ["Calendars.Read"];
