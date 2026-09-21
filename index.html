@@ -84,6 +84,30 @@
   .chip.tentative{opacity:.7}
   .free{color:var(--ink-300);font-size:12px}
 
+  /* ---- Auslastung (Kernzeit) ---- */
+  .util{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--ink-500)}
+  .util .ubar{flex:1;height:6px;border-radius:3px;background:var(--ink-100);overflow:hidden}
+  .util .ubar i{display:block;height:100%;border-radius:3px}
+  .util.pw .ubar i{background:var(--blue)}.util.ph .ubar i{background:var(--green)}
+  .util b{font-weight:600;color:var(--ink-700);white-space:nowrap}
+
+  /* ---- Monatsansicht ---- */
+  .month{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:6px}
+  .month .dow{font-family:var(--font-head);font-size:13px;color:var(--ink-500);text-align:center;padding:4px 0}
+  .month .cell{background:var(--white);border:1px solid var(--ink-200);border-radius:12px;padding:8px;min-height:150px;cursor:pointer;min-width:0}
+  .month .cell:hover{border-color:var(--blue)}
+  .month .cell.other{opacity:.45}
+  .month .cell.today{background:var(--sun-soft);border-color:var(--sun)}
+  .month .cell .d{font-family:var(--font-head);font-weight:700;font-size:14px;margin-bottom:6px}
+  .month .cell .d small{font-weight:600;color:var(--ink-500);font-size:11px;margin-left:6px}
+  .month .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(40px,1.4fr) 30px;align-items:center;gap:6px;font-size:11px;line-height:1.5}
+  .month .row .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-700)}
+  .month .row .ubar{display:block;height:6px;min-width:40px;border-radius:3px;background:var(--ink-100);overflow:hidden}
+  .month .row .ubar i{display:block;height:100%;border-radius:3px}
+  .month .row.pw .ubar i{background:var(--blue)}.month .row.ph .ubar i{background:var(--green)}
+  .month .row .h{text-align:right;color:var(--ink-500)}
+  .month .row.full .n{font-weight:700}
+
   footer{max-width:1600px;margin:0 auto;padding:0 20px 30px;color:var(--ink-500);font-size:12px;display:flex;gap:16px;flex-wrap:wrap}
 
   /* ---- TV-Modus (?tv=1): größer, ohne Bedienelemente ---- */
@@ -97,7 +121,7 @@
 <header><div class="bar">
   <div class="brand"><span class="mark"><i></i><i></i><i></i><i></i></span>Raumbelegung <small>BildungsWerkstatt e.V.</small></div>
   <div class="spacer"></div>
-  <div class="seg" id="viewSeg"><button data-v="day">Tag</button><button data-v="week">Woche</button></div>
+  <div class="seg" id="viewSeg"><button data-v="day">Tag</button><button data-v="week">Woche</button><button data-v="month">Monat</button></div>
   <div class="nav">
     <button class="icon" id="btnPrev" title="zurück">‹</button>
     <button id="btnToday">Heute</button>
@@ -120,16 +144,17 @@ const CONFIG = {
   clientId: "1fd3facf-d2aa-4680-b963-7212dff467d5",          // App-Registrierung → Anwendungs-ID (Client)
   startHour: 7, endHour: 20,            // sichtbarer Zeitraum in der Tagesansicht
   weekDays: 5,                          // 5 = Mo–Fr, 7 = Mo–So
+  coreStart: 8, coreEnd: 18,            // Kernzeit für die Auslastungsanzeige
   refreshMinutes: 5,
   rooms: [
-    { name:"Digital Konfi 1",  mail:"raum-digi1@bws-ev.de",            site:"pw", info:"" },
+    { name:"Digital Konfi 1",  short:"Digi-Konfi", mail:"raum-digi1@bws-ev.de",            site:"pw", info:"" },
     { name:"Analog",           mail:"raum-analog@bws-ev.de",           site:"pw", info:"" },
     { name:"Perso",            mail:"raum-perso@bws-ev.de",            site:"pw", info:"" },
     { name:"Systemisch",       mail:"raum-systemisch-2og@bws-ev.de",   site:"pw", info:"Genehmigung durch Katrin" },
     { name:"Besprechung",      mail:"raum-besprechung-2og@bws-ev.de",  site:"pw", info:"Genehmigung durch Katrin" },
-    { name:"Palmenhaus Café",  mail:"palmenhaus-cafe@bws-ev.de",       site:"ph", info:"Astrid-Lindgren-Str. 16" },
-    { name:"Palmenhaus Seminar", mail:"palmenhaus-seminar@bws-ev.de",  site:"ph", info:"Astrid-Lindgren-Str. 16" },
-    { name:"Palmenhaus Beratung", mail:"palmenhaus-beratung@bws-ev.de",site:"ph", info:"Astrid-Lindgren-Str. 16" },
+    { name:"Palmenhaus Café",  short:"PH Café", mail:"palmenhaus-cafe@bws-ev.de",       site:"ph", info:"Astrid-Lindgren-Str. 16" },
+    { name:"Palmenhaus Seminar", short:"PH Seminar", mail:"palmenhaus-seminar@bws-ev.de",  site:"ph", info:"Astrid-Lindgren-Str. 16" },
+    { name:"Palmenhaus Beratung", short:"PH Beratung", mail:"palmenhaus-beratung@bws-ev.de",site:"ph", info:"Astrid-Lindgren-Str. 16" },
   ]
 };
 /* ============================================================ */
@@ -207,9 +232,12 @@ async function load() {
 function render() {
   $("#title").textContent = view === "day"
     ? anchor.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
-    : "KW " + isoWeek(anchor) + " · " + fmtD(monday(anchor)) + " – " + fmtD(addDays(monday(anchor), CONFIG.weekDays - 1));
+    : view === "week"
+    ? "KW " + isoWeek(anchor) + " · " + fmtD(monday(anchor)) + " – " + fmtD(addDays(monday(anchor), CONFIG.weekDays - 1))
+    : anchor.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
   document.querySelectorAll("#viewSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
-  $("#main").innerHTML = view === "day" ? renderDay() : renderWeek();
+  $("#main").innerHTML = view === "day" ? renderDay() : view === "week" ? renderWeek() : renderMonth();
+  document.querySelectorAll("[data-goto]").forEach(el => el.onclick = () => { anchor = new Date(el.dataset.goto); view = "day"; localStorage.setItem("rb.view", view); load(); });
   document.querySelectorAll("[data-book]").forEach(el => el.onclick = () => book(...el.dataset.book.split("|")));
 }
 
@@ -246,13 +274,54 @@ function renderWeek() {
     for (const d of days) {
       const t = new Date(d); t.setHours(9, 0, 0, 0);
       const evs = (cache[r.mail.toLowerCase()] || []).filter(e => sameDay(e.start, d)).sort((a, b) => a.start - b.start);
+      const u = utilization(evs, d);
       h += `<td class="cell" data-book="${r.mail}|${r.name}|${t.toISOString()}" title="${esc(r.name)} am ${fmtD(d)} buchen">` +
-        (evs.length ? evs.map(e => `<span class="chip ${r.site} ${e.status === "tentative" ? "tentative" : ""}" title="${esc(e.subject)}">${fmtT(e.start)} ${esc(e.subject)}</span>`).join("") : `<span class="free">frei</span>`) + `</td>`;
+        (evs.length ? evs.map(e => `<span class="chip ${r.site} ${e.status === "tentative" ? "tentative" : ""}" title="${esc(e.subject)}">${fmtT(e.start)}–${fmtT(e.end)} ${esc(e.subject)}</span>`).join("") : `<span class="free">frei</span>`) +
+        utilBar(u, r.site) + `</td>`;
     }
     h += `</tr>`;
   }
   return h + `</tbody></table>`;
 }
+
+/* ---------- Monatsansicht ---------- */
+function renderMonth() {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  const cols = CONFIG.weekDays, start = monday(first);
+  const names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].slice(0, cols);
+  let h = `<div class="month" style="--cols:${cols}">` + names.map(n => `<div class="dow">${n}</div>`).join("");
+  for (let d = new Date(start); d <= last || d.getDay() !== 1; d = addDays(d, 1)) {
+    if (d > last && d.getDay() === 1) break;
+    if (cols === 5 && d.getDay() % 6 === 0) continue;         // Sa/So überspringen
+    const other = d.getMonth() !== anchor.getMonth();
+    const rows = CONFIG.rooms.map(r => {
+      const evs = (cache[r.mail.toLowerCase()] || []).filter(e => sameDay(e.start, d));
+      const u = utilization(evs, d);
+      return `<div class="row ${r.site} ${u.pct >= 1 ? "full" : ""}" title="${esc(r.name)}: ${fmtH(u.hours)} von ${fmtH(u.total)} h belegt"><span class="n">${esc(r.short || r.name)}</span><span class="ubar"><i style="width:${Math.round(u.pct * 100)}%"></i></span><span class="h">${u.hours ? fmtH(u.hours) + " h" : ""}</span></div>`;
+    }).join("");
+    const cnt = CONFIG.rooms.reduce((n, r) => n + (cache[r.mail.toLowerCase()] || []).filter(e => sameDay(e.start, d)).length, 0);
+    h += `<div class="cell ${other ? "other" : ""} ${sameDay(d, new Date()) ? "today" : ""}" data-goto="${d.toISOString()}" title="Tagesansicht öffnen"><div class="d">${d.getDate()}.<small>${cnt ? cnt + (cnt === 1 ? " Buchung" : " Buchungen") : ""}</small></div>${rows}</div>`;
+  }
+  return h + `</div>`;
+}
+
+/* ---------- Auslastung in der Kernzeit ---------- */
+function utilization(evs, day) {
+  const cs = new Date(day); cs.setHours(CONFIG.coreStart, 0, 0, 0);
+  const ce = new Date(day); ce.setHours(CONFIG.coreEnd, 0, 0, 0);
+  const total = (ce - cs) / 36e5;
+  // belegte Intervalle innerhalb der Kernzeit zusammenführen, damit Überlappungen nicht doppelt zählen
+  const iv = evs.map(e => [Math.max(e.start, cs), Math.min(e.end, ce)]).filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  let hours = 0, cur = null;
+  for (const [a, b] of iv) { if (!cur || a > cur[1]) { if (cur) hours += (cur[1] - cur[0]) / 36e5; cur = [a, b]; } else cur[1] = Math.max(cur[1], b); }
+  if (cur) hours += (cur[1] - cur[0]) / 36e5;
+  return { hours, total, pct: Math.min(1, hours / total) };
+}
+function utilBar(u, site) {
+  return `<div class="util ${site}" title="Belegung in der Kernzeit ${CONFIG.coreStart}–${CONFIG.coreEnd} Uhr"><span class="ubar"><i style="width:${Math.round(u.pct * 100)}%"></i></span><b>${fmtH(u.hours)} / ${fmtH(u.total)} h</b></div>`;
+}
+function fmtH(x) { return (Math.round(x * 4) / 4).toLocaleString("de-DE", { maximumFractionDigits: 2 }); }
 
 /* ---------- Buchen: öffnet Outlook mit vorausgefülltem Termin ---------- */
 function book(mail, name, startIso) {
@@ -270,8 +339,8 @@ function book(mail, name, startIso) {
 /* ---------- UI ---------- */
 function bindUi() {
   document.querySelectorAll("#viewSeg button").forEach(b => b.onclick = () => { view = b.dataset.v; localStorage.setItem("rb.view", view); load(); });
-  $("#btnPrev").onclick = () => { anchor = addDays(anchor, view === "day" ? -1 : -7); load(); };
-  $("#btnNext").onclick = () => { anchor = addDays(anchor, view === "day" ? 1 : 7); load(); };
+  $("#btnPrev").onclick = () => { step(-1); load(); };
+  $("#btnNext").onclick = () => { step(1); load(); };
   $("#btnToday").onclick = () => { anchor = startOfDay(new Date()); load(); };
   $("#btnLogout").onclick = () => msal.logoutRedirect();
   if (TV) setInterval(() => { anchor = startOfDay(new Date()); }, 60000);
@@ -279,7 +348,17 @@ function bindUi() {
 function showError(m) { $("#main").insertAdjacentHTML("afterbegin", `<div class="note err">${esc(m)}</div>`); $("#status").textContent = ""; }
 
 /* ---------- Helfer ---------- */
-function range() { return view === "day" ? [anchor, addDays(anchor, 1)] : [monday(anchor), addDays(monday(anchor), CONFIG.weekDays)]; }
+function range() {
+  if (view === "day") return [anchor, addDays(anchor, 1)];
+  if (view === "week") return [monday(anchor), addDays(monday(anchor), CONFIG.weekDays)];
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  return [monday(first), addDays(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0), 7)];
+}
+function step(n) {
+  if (view === "day") anchor = addDays(anchor, n);
+  else if (view === "week") anchor = addDays(anchor, 7 * n);
+  else anchor = new Date(anchor.getFullYear(), anchor.getMonth() + n, 1);
+}
 function slotPx() { return parseFloat(getComputedStyle(document.body).getPropertyValue("--slot")); }
 function minutesFrom(d) { return (d - new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate(), CONFIG.startHour)) / 60000; }
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
