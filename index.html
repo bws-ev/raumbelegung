@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raumbelegung BWS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+<style>
+  :root{
+    --blue:#0069b4;--blue-600:#005a9c;--blue-700:#004a80;--blue-50:#e8f2fa;--blue-100:#c9e1f3;
+    --green:#76b82a;--green-700:#4f7d1c;--green-50:#f1f8e6;--green-100:#e0f0c8;
+    --sun:#f0b21f;--sun-soft:#fdf2cf;--coral:#ee6a5f;--coral-soft:#fce0dd;
+    --ink-900:#1b2530;--ink-700:#3a4651;--ink-500:#6c7884;--ink-300:#c2c9d0;--ink-200:#dde2e7;--ink-100:#ecf0f3;--ink-50:#f5f7f9;--white:#fff;
+    --font-head:"Nunito",system-ui,sans-serif;--font-body:"Open Sans",system-ui,sans-serif;
+    --slot:28px;   /* Höhe einer halben Stunde in der Tagesansicht */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--ink-50);color:var(--ink-900);font-family:var(--font-body);font-size:15px}
+  header{background:var(--white);border-bottom:1px solid var(--ink-200);position:sticky;top:0;z-index:5}
+  .bar{max-width:1600px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--font-head);font-weight:800;font-size:20px;color:var(--blue)}
+  .brand .mark{width:26px;height:26px;display:grid;grid-template-columns:1fr 1fr;gap:3px;transform:rotate(45deg) scale(.8)}
+  .brand .mark i{display:block;border-radius:3px}
+  .brand .mark i:nth-child(1){background:var(--green)}.brand .mark i:nth-child(2){background:var(--blue)}
+  .brand .mark i:nth-child(3){background:var(--blue)}.brand .mark i:nth-child(4){background:var(--green)}
+  .brand small{font-weight:600;font-size:13px;color:var(--ink-500);font-family:var(--font-body)}
+  .spacer{flex:1}
+  .nav{display:flex;align-items:center;gap:6px}
+  button{font:inherit;cursor:pointer;border:1px solid var(--ink-300);background:var(--white);color:var(--ink-900);border-radius:999px;padding:7px 14px;font-weight:600}
+  button:hover{border-color:var(--blue);color:var(--blue)}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.primary:hover{background:var(--blue-600)}
+  button.icon{width:36px;padding:0;text-align:center}
+  .seg{display:inline-flex;border:1px solid var(--ink-300);border-radius:999px;overflow:hidden}
+  .seg button{border:0;border-radius:0;padding:7px 14px}
+  .seg button.on{background:var(--blue-50);color:var(--blue-700)}
+  .title{font-family:var(--font-head);font-weight:700;font-size:17px;min-width:230px;text-align:center}
+  .legend{display:flex;gap:14px;font-size:13px;color:var(--ink-700)}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .legend .pw::before{background:var(--blue)}.legend .ph::before{background:var(--green)}
+  main{max-width:1600px;margin:0 auto;padding:16px 20px 40px}
+  .note{background:var(--sun-soft);border:1px solid var(--sun);border-radius:12px;padding:12px 16px;margin-bottom:16px}
+  .err{background:var(--coral-soft);border-color:var(--coral)}
+  .login{display:grid;place-items:center;min-height:60vh;text-align:center;gap:14px}
+  .login h1{font-family:var(--font-head);color:var(--blue);margin:0}
+  .login p{color:var(--ink-500);max-width:460px;margin:0}
+
+  /* ---- Tagesansicht ---- */
+  .day{display:grid;grid-template-columns:56px repeat(var(--n),minmax(120px,1fr));gap:0;background:var(--white);border:1px solid var(--ink-200);border-radius:14px;overflow:auto}
+  .day .head{position:sticky;top:0;background:var(--white);z-index:2;padding:10px 8px;border-bottom:1px solid var(--ink-200);border-left:1px solid var(--ink-100);text-align:center}
+  .day .head b{display:block;font-family:var(--font-head);font-size:14px;line-height:1.2}
+  .day .head small{color:var(--ink-500);font-size:12px}
+  .day .head.pw b{color:var(--blue-700)}.day .head.ph b{color:var(--green-700)}
+  .day .corner{border-bottom:1px solid var(--ink-200);position:sticky;top:0;background:var(--white);z-index:3}
+  .day .times{position:relative}
+  .day .times div{height:calc(var(--slot)*2);font-size:12px;color:var(--ink-500);text-align:right;padding-right:8px;transform:translateY(-7px)}
+  .day .times div:first-child{transform:translateY(2px)}
+  .day .col{position:relative;border-left:1px solid var(--ink-100);background-image:linear-gradient(var(--ink-100) 1px,transparent 1px);background-size:100% calc(var(--slot)*2)}
+  .day .col .slot{position:absolute;left:0;right:0;height:var(--slot);cursor:pointer}
+  .day .col .slot:hover{background:var(--blue-50)}
+  .day .col.now::after{content:"";position:absolute;left:0;right:0;top:var(--now);border-top:2px solid var(--coral);pointer-events:none}
+  .ev{position:absolute;left:3px;right:3px;border-radius:8px;padding:4px 7px;font-size:12px;line-height:1.25;overflow:hidden;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .ev.pw{background:var(--blue)}.ev.ph{background:var(--green-700)}
+  .ev.pw.tentative{background:repeating-linear-gradient(45deg,var(--blue) 0 6px,var(--blue-600) 6px 12px)}
+  .ev.ph.tentative{background:repeating-linear-gradient(45deg,var(--green-700) 0 6px,#3d6017 6px 12px)}
+  .ev b{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev span{opacity:.9}
+
+  /* ---- Wochenansicht ---- */
+  table.week{width:100%;border-collapse:separate;border-spacing:0;background:var(--white);border:1px solid var(--ink-200);border-radius:14px;overflow:hidden}
+  table.week th,table.week td{border-bottom:1px solid var(--ink-200);border-left:1px solid var(--ink-100);padding:8px;vertical-align:top;text-align:left}
+  table.week th{font-family:var(--font-head);font-size:14px;background:var(--ink-50)}
+  table.week th.today{background:var(--sun-soft)}
+  table.week td:first-child,table.week th:first-child{border-left:0;position:sticky;left:0;background:var(--white);min-width:170px}
+  table.week td.room b{display:block;font-family:var(--font-head);font-size:14px}
+  table.week td.room small{color:var(--ink-500)}
+  table.week td.room.pw b{color:var(--blue-700)}table.week td.room.ph b{color:var(--green-700)}
+  table.week td.cell{min-width:150px;cursor:pointer}
+  table.week td.cell:hover{background:var(--blue-50)}
+  .chip{display:block;border-radius:7px;padding:3px 7px;margin:2px 0;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chip.pw{background:var(--blue)}.chip.ph{background:var(--green-700)}
+  .chip.tentative{opacity:.7}
+  .free{color:var(--ink-300);font-size:12px}
+
+  footer{max-width:1600px;margin:0 auto;padding:0 20px 30px;color:var(--ink-500);font-size:12px;display:flex;gap:16px;flex-wrap:wrap}
+
+  /* ---- TV-Modus (?tv=1): größer, ohne Bedienelemente ---- */
+  body.tv{font-size:18px;--slot:36px}
+  body.tv .nav,body.tv .seg,body.tv #btnLogout,body.tv footer{display:none}
+  body.tv .day .head b{font-size:18px}
+  body.tv .ev{font-size:15px}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand"><span class="mark"><i></i><i></i><i></i><i></i></span>Raumbelegung <small>BildungsWerkstatt e.V.</small></div>
+  <div class="spacer"></div>
+  <div class="seg" id="viewSeg"><button data-v="day">Tag</button><button data-v="week">Woche</button></div>
+  <div class="nav">
+    <button class="icon" id="btnPrev" title="zurück">‹</button>
+    <button id="btnToday">Heute</button>
+    <button class="icon" id="btnNext" title="weiter">›</button>
+  </div>
+  <div class="title" id="title"></div>
+  <div class="legend"><span class="pw">Paul-Wassermann-Str. 15</span><span class="ph">Palmenhaus</span></div>
+  <button id="btnLogout" title="Abmelden">Abmelden</button>
+</div></header>
+
+<main id="main"></main>
+<footer><span id="status"></span><span>Klick auf eine freie Zeit öffnet die Buchung in Outlook.</span></footer>
+
+<script>
+/* ============================================================
+   KONFIGURATION – nur diesen Block anpassen
+   ============================================================ */
+const CONFIG = {
+  tenantId: "DEINE-TENANT-ID",          // Entra Admin Center → Übersicht → Mandanten-ID
+  clientId: "DEINE-CLIENT-ID",          // App-Registrierung → Anwendungs-ID (Client)
+  startHour: 7, endHour: 20,            // sichtbarer Zeitraum in der Tagesansicht
+  weekDays: 5,                          // 5 = Mo–Fr, 7 = Mo–So
+  refreshMinutes: 5,
+  rooms: [
+    { name:"Digital Konfi 1",  mail:"raum-digi1@bws-ev.de",            site:"pw", info:"" },
+    { name:"Analog",           mail:"raum-analog@bws-ev.de",           site:"pw", info:"EG" },
+    { name:"Perso",            mail:"raum-perso@bws-ev.de",            site:"pw", info:"EG" },
+    { name:"Systemisch",       mail:"raum-systemisch-2og@bws-ev.de",   site:"pw", info:"2. OG · Genehmigung" },
+    { name:"Besprechung",      mail:"raum-besprechung-2og@bws-ev.de",  site:"pw", info:"2. OG · Genehmigung" },
+    { name:"Palmenhaus Café",  mail:"palmenhaus-cafe@bws-ev.de",       site:"ph", info:"Astrid-Lindgren-Str. 16" },
+    { name:"Palmenhaus Seminar", mail:"palmenhaus-seminar@bws-ev.de",  site:"ph", info:"Astrid-Lindgren-Str. 16" },
+    { name:"Palmenhaus Beratung", mail:"palmenhaus-beratung@bws-ev.de",site:"ph", info:"Astrid-Lindgren-Str. 16" },
+  ]
+};
+/* ============================================================ */
+
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const TV = params.get("tv") === "1";
+if (TV) document.body.classList.add("tv");
+
+let view = TV ? "day" : (localStorage.getItem("rb.view") || "day");
+let anchor = startOfDay(new Date());
+let cache = {};      // key: ISO-Tag → Liste von Events pro Raum
+let timer = null;
+
+/* ---------- Auth (MSAL, Anmeldung mit dem BWS-Konto) ---------- */
+const msal = new window.msal.PublicClientApplication({
+  auth: { clientId: CONFIG.clientId, authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`, redirectUri: location.origin + location.pathname },
+  cache: { cacheLocation: "localStorage" }
+});
+const SCOPES = ["Calendars.Read"];
+
+async function getToken() {
+  const acc = msal.getAllAccounts()[0];
+  if (!acc) return null;
+  try { return (await msal.acquireTokenSilent({ scopes: SCOPES, account: acc })).accessToken; }
+  catch (e) { await msal.acquireTokenRedirect({ scopes: SCOPES }); }
+}
+
+async function init() {
+  try { await msal.handleRedirectPromise(); } catch (e) { showError("Anmeldung fehlgeschlagen: " + e.message); }
+  if (!msal.getAllAccounts().length) { renderLogin(); return; }
+  bindUi();
+  await load();
+  timer = setInterval(load, CONFIG.refreshMinutes * 60000);
+}
+
+function renderLogin() {
+  $("#main").innerHTML = `<div class="login">
+    <h1>Raumbelegung BWS</h1>
+    <p>Zeigt die Belegung aller Besprechungs- und Seminarräume an beiden Standorten. Bitte mit dem BWS-Konto anmelden.</p>
+    <button class="primary" id="btnLogin">Mit Microsoft anmelden</button></div>`;
+  $("#btnLogin").onclick = () => msal.loginRedirect({ scopes: SCOPES });
+}
+
+/* ---------- Daten aus Microsoft Graph ---------- */
+async function load() {
+  const token = await getToken(); if (!token) return;
+  const [from, to] = range();
+  $("#status").textContent = "Lade …";
+  try {
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/calendar/getSchedule", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Prefer: 'outlook.timezone="W. Europe Standard Time"' },
+      body: JSON.stringify({
+        schedules: CONFIG.rooms.map(r => r.mail),
+        startTime: { dateTime: iso(from), timeZone: "W. Europe Standard Time" },
+        endTime:   { dateTime: iso(to),   timeZone: "W. Europe Standard Time" },
+        availabilityViewInterval: 30
+      })
+    });
+    if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 200));
+    const data = await res.json();
+    cache = {};
+    data.value.forEach(s => {
+      cache[s.scheduleId.toLowerCase()] = (s.scheduleItems || [])
+        .filter(i => i.status !== "free")
+        .map(i => ({ start: new Date(i.start.dateTime), end: new Date(i.end.dateTime), subject: i.subject || "Belegt", status: i.status, who: i.location || "" }));
+    });
+    render();
+    $("#status").textContent = "Stand " + new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+  } catch (e) { showError("Belegung konnte nicht geladen werden: " + e.message); }
+}
+
+/* ---------- Rendering ---------- */
+function render() {
+  $("#title").textContent = view === "day"
+    ? anchor.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
+    : "KW " + isoWeek(anchor) + " · " + fmtD(monday(anchor)) + " – " + fmtD(addDays(monday(anchor), CONFIG.weekDays - 1));
+  document.querySelectorAll("#viewSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
+  $("#main").innerHTML = view === "day" ? renderDay() : renderWeek();
+  document.querySelectorAll("[data-book]").forEach(el => el.onclick = () => book(...el.dataset.book.split("|")));
+}
+
+function renderDay() {
+  const hours = CONFIG.endHour - CONFIG.startHour, slots = hours * 2;
+  const n = CONFIG.rooms.length, isToday = sameDay(anchor, new Date());
+  const now = new Date(), nowPx = ((now.getHours() + now.getMinutes() / 60) - CONFIG.startHour) * 2 * slotPx();
+  let h = `<div class="day" style="--n:${n}"><div class="corner"></div>`;
+  h += CONFIG.rooms.map(r => `<div class="head ${r.site}"><b>${esc(r.name)}</b><small>${esc(r.info)}</small></div>`).join("");
+  h += `<div class="times">` + Array.from({ length: hours }, (_, i) => `<div>${CONFIG.startHour + i}:00</div>`).join("") + `</div>`;
+  for (const r of CONFIG.rooms) {
+    const evs = (cache[r.mail.toLowerCase()] || []).filter(e => sameDay(e.start, anchor) || (e.start < anchor && e.end > anchor));
+    h += `<div class="col ${isToday && nowPx > 0 && nowPx < slots * slotPx() ? "now" : ""}" style="height:${slots * slotPx()}px;--now:${nowPx}px">`;
+    for (let s = 0; s < slots; s++) {
+      const t = new Date(anchor); t.setHours(CONFIG.startHour, s * 30, 0, 0);
+      h += `<div class="slot" style="top:${s * slotPx()}px" title="${esc(r.name)} buchen, ${fmtT(t)}" data-book="${r.mail}|${r.name}|${t.toISOString()}"></div>`;
+    }
+    for (const e of evs) {
+      const top = Math.max(0, minutesFrom(e.start)) / 30 * slotPx();
+      const bottom = Math.min(slots * 30, minutesFrom(e.end)) / 30 * slotPx();
+      if (bottom <= 0 || top >= slots * slotPx()) continue;
+      h += `<div class="ev ${r.site} ${e.status === "tentative" ? "tentative" : ""}" style="top:${top + 1}px;height:${Math.max(bottom - top - 2, 16)}px" title="${esc(e.subject)} · ${fmtT(e.start)}–${fmtT(e.end)}"><b>${esc(e.subject)}</b><span>${fmtT(e.start)}–${fmtT(e.end)}</span></div>`;
+    }
+    h += `</div>`;
+  }
+  return h + `</div>`;
+}
+
+function renderWeek() {
+  const mon = monday(anchor), days = Array.from({ length: CONFIG.weekDays }, (_, i) => addDays(mon, i));
+  let h = `<table class="week"><thead><tr><th>Raum</th>` + days.map(d => `<th class="${sameDay(d, new Date()) ? "today" : ""}">${d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}</th>`).join("") + `</tr></thead><tbody>`;
+  for (const r of CONFIG.rooms) {
+    h += `<tr><td class="room ${r.site}"><b>${esc(r.name)}</b><small>${esc(r.info)}</small></td>`;
+    for (const d of days) {
+      const t = new Date(d); t.setHours(9, 0, 0, 0);
+      const evs = (cache[r.mail.toLowerCase()] || []).filter(e => sameDay(e.start, d)).sort((a, b) => a.start - b.start);
+      h += `<td class="cell" data-book="${r.mail}|${r.name}|${t.toISOString()}" title="${esc(r.name)} am ${fmtD(d)} buchen">` +
+        (evs.length ? evs.map(e => `<span class="chip ${r.site} ${e.status === "tentative" ? "tentative" : ""}" title="${esc(e.subject)}">${fmtT(e.start)} ${esc(e.subject)}</span>`).join("") : `<span class="free">frei</span>`) + `</td>`;
+    }
+    h += `</tr>`;
+  }
+  return h + `</tbody></table>`;
+}
+
+/* ---------- Buchen: öffnet Outlook mit vorausgefülltem Termin ---------- */
+function book(mail, name, startIso) {
+  if (TV) return;
+  const s = new Date(startIso), e = new Date(s.getTime() + 60 * 60000);
+  const u = new URL("https://outlook.office.com/calendar/deeplink/compose");
+  u.searchParams.set("subject", "");
+  u.searchParams.set("startdt", local(s)); u.searchParams.set("enddt", local(e));
+  u.searchParams.set("location", "Raum " + name);
+  u.searchParams.set("to", mail);
+  u.searchParams.set("path", "/calendar/action/compose");
+  window.open(u, "_blank");
+}
+
+/* ---------- UI ---------- */
+function bindUi() {
+  document.querySelectorAll("#viewSeg button").forEach(b => b.onclick = () => { view = b.dataset.v; localStorage.setItem("rb.view", view); load(); });
+  $("#btnPrev").onclick = () => { anchor = addDays(anchor, view === "day" ? -1 : -7); load(); };
+  $("#btnNext").onclick = () => { anchor = addDays(anchor, view === "day" ? 1 : 7); load(); };
+  $("#btnToday").onclick = () => { anchor = startOfDay(new Date()); load(); };
+  $("#btnLogout").onclick = () => msal.logoutRedirect();
+  if (TV) setInterval(() => { anchor = startOfDay(new Date()); }, 60000);
+}
+function showError(m) { $("#main").insertAdjacentHTML("afterbegin", `<div class="note err">${esc(m)}</div>`); $("#status").textContent = ""; }
+
+/* ---------- Helfer ---------- */
+function range() { return view === "day" ? [anchor, addDays(anchor, 1)] : [monday(anchor), addDays(monday(anchor), CONFIG.weekDays)]; }
+function slotPx() { return parseFloat(getComputedStyle(document.body).getPropertyValue("--slot")); }
+function minutesFrom(d) { return (d - new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate(), CONFIG.startHour)) / 60000; }
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function monday(d) { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function isoWeek(d) { const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = x.getUTCDay() || 7; x.setUTCDate(x.getUTCDate() + 4 - day); return Math.ceil((((x - Date.UTC(x.getUTCFullYear(), 0, 1)) / 864e5) + 1) / 7); }
+function pad(n) { return String(n).padStart(2, "0"); }
+function iso(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`; }
+function local(d) { return iso(d); }
+function fmtT(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function fmtD(d) { return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+init();
+</script>
+</body>
+</html>
