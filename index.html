@@ -38,7 +38,10 @@
   .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
   .legend .pw::before{background:var(--blue)}.legend .ph::before{background:var(--green)}
   main{max-width:1600px;margin:0 auto;padding:16px 20px 40px}
-  .note{background:var(--sun-soft);border:1px solid var(--sun);border-radius:12px;padding:12px 16px;margin-bottom:16px}
+  .note{background:var(--sun-soft);border:1px solid var(--sun);border-radius:12px;padding:12px 16px;margin-bottom:16px;position:relative}
+  .note.guest{background:#eef5fb;border-color:var(--blue);padding-right:40px}
+  .note.guest a{color:var(--blue);font-weight:600}
+  .note .x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:18px;cursor:pointer;color:inherit}
   .err{background:var(--coral-soft);border-color:var(--coral)}
   .login{display:grid;place-items:center;min-height:60vh;text-align:center;gap:14px}
   .login h1{font-family:var(--font-head);color:var(--blue);margin:0}
@@ -156,6 +159,7 @@ const CONFIG = {
   weekDays: 7,                          // 5 = Mo–Fr, 7 = Mo–So
   coreStart: 8, coreEnd: 18,            // Kernzeit für die Auslastungsanzeige
   refreshMinutes: 5,
+  apiBase: "https://raum.bws-ev.de",      // Belegungsdienst für Gäste (Gastlink mit ?key=…)
   rooms: [
     { name:"Digital Konfi 1",  short:"Digi-Konfi", mail:"raum-digi1@bws-ev.de",            site:"pw", info:"" },
     { name:"Analog",           mail:"raum-analog@bws-ev.de",           site:"pw", info:"" },
@@ -173,6 +177,9 @@ const $ = s => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const TV = params.get("tv") === "1";
 if (TV) document.body.classList.add("tv");
+const GUEST_KEY = params.get("key");          // Gastmodus: Daten vom Belegungsdienst, ohne Microsoft-Anmeldung
+const GUEST = !!GUEST_KEY;
+if (GUEST) document.body.classList.add("guest");
 
 let view = TV ? "day" : (localStorage.getItem("rb.view") || "day");
 let anchor = startOfDay(new Date());
@@ -194,6 +201,7 @@ async function getToken() {
 }
 
 async function init() {
+  if (GUEST) { bindUi(); await load(); timer = setInterval(load, CONFIG.refreshMinutes * 60000); return; }
   try { await msal.handleRedirectPromise(); } catch (e) { showError("Anmeldung fehlgeschlagen: " + e.message); }
   if (!msal.getAllAccounts().length) { renderLogin(); return; }
   bindUi();
@@ -211,6 +219,7 @@ function renderLogin() {
 
 /* ---------- Daten aus Microsoft Graph ---------- */
 async function load() {
+  if (GUEST) return loadGuest();
   const token = await getToken(); if (!token) return;
   const [from, to] = range();
   $("#status").textContent = "Lade …";
@@ -235,6 +244,29 @@ async function load() {
     });
     render();
     $("#status").textContent = "Stand " + new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+  } catch (e) { showError("Belegung konnte nicht geladen werden: " + e.message); }
+}
+
+/* ---------- Daten vom Belegungsdienst (Gastmodus) ---------- */
+async function loadGuest() {
+  const [from, to] = range();
+  $("#status").textContent = "Lade …";
+  try {
+    const u = new URL(CONFIG.apiBase + "/api/belegung");
+    u.searchParams.set("from", ymd(from)); u.searchParams.set("to", ymd(to)); u.searchParams.set("key", GUEST_KEY);
+    const res = await fetch(u);
+    if (res.status === 403) throw new Error("Der Gastlink ist nicht gültig.");
+    if (!res.ok) throw new Error(res.status + " " + ((await res.json()).error || ""));
+    const data = await res.json();
+    cache = {};
+    for (const [mail, evs] of Object.entries(data.rooms)) {
+      cache[mail.toLowerCase()] = evs.map(e => ({
+        start: new Date(e.start), end: new Date(e.end), status: e.status,
+        subject: e.who ? "Belegt · " + e.who : "Belegt", who: e.who || ""
+      }));
+    }
+    render();
+    $("#status").textContent = "Gast · Stand " + new Date(data.generatedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
   } catch (e) { showError("Belegung konnte nicht geladen werden: " + e.message); }
 }
 
@@ -328,6 +360,15 @@ function timeline(evs, day, site) {
 function book(mail, name, startIso) {
   if (TV) return;
   const s = new Date(startIso), e = new Date(s.getTime() + 60 * 60000);
+  if (GUEST) {
+    document.querySelectorAll(".note.guest").forEach(n => n.remove());
+    $("#main").insertAdjacentHTML("afterbegin", `<div class="note guest">
+      <b>Raum ${esc(name)} buchen:</b> Schicke aus deinem eigenen Kalender eine Termineinladung an
+      <a href="mailto:${esc(mail)}?subject=Raumbuchung%20${encodeURIComponent(name)}">${esc(mail)}</a>
+      (z.&nbsp;B. ${fmtD(s)} ${fmtT(s)}–${fmtT(e)} Uhr). Der Raum antwortet mit Zu- oder Absage.
+      <button class="x" onclick="this.parentNode.remove()">×</button></div>`);
+    return;
+  }
   const u = new URL("https://outlook.office.com/calendar/deeplink/compose");
   u.searchParams.set("subject", "");
   u.searchParams.set("startdt", local(s)); u.searchParams.set("enddt", local(e));
@@ -343,7 +384,7 @@ function bindUi() {
   $("#btnPrev").onclick = () => { step(-1); load(); };
   $("#btnNext").onclick = () => { step(1); load(); };
   $("#btnToday").onclick = () => { anchor = startOfDay(new Date()); load(); };
-  $("#btnLogout").onclick = () => msal.logoutRedirect();
+  if (GUEST) $("#btnLogout").style.display = "none"; else $("#btnLogout").onclick = () => msal.logoutRedirect();
   if (TV) setInterval(() => { anchor = startOfDay(new Date()); }, 60000);
 }
 function showError(m) { $("#main").insertAdjacentHTML("afterbegin", `<div class="note err">${esc(m)}</div>`); $("#status").textContent = ""; }
@@ -372,6 +413,7 @@ function iso(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 function local(d) { return iso(d); }
 function fmtT(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 function fmtD(d) { return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }); }
+function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
 init();
